@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Renuka Devi Pharma — Attendance & Salary Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0F4C5C;
+    --teal: #1B6B7A;
+    --mint: #8BC4B9;
+    --offwhite: #F2F7F6;
+    --slate: #2F3E46;
+    --border: #E3E9E7;
+    --present: #1E7A4C; --present-bg: #E7F5EE;
+    --leave: #1D4ED8; --leave-bg: #E8EEFD;
+    --leave-unpaid: #B04A3F; --leave-unpaid-bg: #F7E4E1;
+    --absent: #C0392B; --absent-bg: #FBEAE8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Manrope', system-ui, sans-serif; background: var(--offwhite); color: var(--slate); padding-bottom: 64px; }
+  header { background: linear-gradient(135deg, var(--slate), var(--navy)); color: #fff; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; box-shadow: 0 2px 10px rgba(15,76,92,0.15); }
+  header .title { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; }
+  .tabs { display: flex; gap: 6px; }
+  .tab-btn { background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.18); color: #D7E4E2; border-radius: 8px; padding: 7px 14px; cursor: pointer; font-size: 13px; font-weight: 500; font-family: inherit; transition: all .15s ease; }
+  .tab-btn:hover { background: rgba(255,255,255,0.18); }
+  .tab-btn.active { background: #fff; color: var(--navy); font-weight: 700; }
+  header .month-nav { display: flex; align-items: center; gap: 10px; }
+  header button.nav { background: rgba(255,255,255,0.14); border: none; color: #fff; border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 15px; transition: background .15s ease; }
+  header button.nav:hover { background: rgba(255,255,255,0.26); }
+  header .month-label { font-weight: 600; font-size: 14px; min-width: 118px; text-align: center; letter-spacing: 0.2px; }
+  .layout { display: flex; flex-direction: column; }
+  @media (min-width: 800px) { .layout { flex-direction: row; } .sidebar { width: 270px; flex-shrink: 0; border-right: 1px solid var(--border); } .main { flex: 1; } }
+  .sidebar { background: #fff; padding: 16px; border-bottom: 1px solid var(--border); }
+  .sidebar h3 { font-size: 11px; font-weight: 700; color: #7C8A88; text-transform: uppercase; letter-spacing: 0.6px; margin: 0 0 10px; }
+  .emp-row { display: flex; align-items: center; justify-content: space-between; padding: 11px 12px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; margin-bottom: 6px; transition: all .15s ease; }
+  .emp-row:hover { background: #F5FAF9; }
+  .emp-row.active { background: linear-gradient(135deg, #E8F5F1, #DCF0EA); border-color: var(--mint); }
+  .emp-name { font-size: 14px; font-weight: 600; }
+  .emp-sub { font-size: 11px; color: #7C8A88; margin-top: 1px; }
+  .emp-del { color: var(--absent); cursor: pointer; font-size: 15px; padding: 4px; border-radius: 6px; transition: background .15s ease; }
+  .emp-del:hover { background: var(--absent-bg); }
+  .add-btn { width: 100%; margin-top: 6px; padding: 11px; border-radius: 10px; border: 1.5px dashed #B7C4C1; background: transparent; color: var(--teal); font-weight: 600; font-size: 13px; cursor: pointer; font-family: inherit; transition: all .15s ease; }
+  .add-btn:hover { background: #F5FAF9; border-color: var(--teal); }
+  .add-form { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; animation: fadeIn .18s ease; }
+  .add-form input, .add-form select { border: 1.5px solid var(--border); border-radius: 8px; padding: 10px 11px; font-size: 14px; width: 100%; font-family: inherit; transition: border-color .15s ease; }
+  .add-form input:focus, .add-form select:focus { outline: none; border-color: var(--teal); }
+  .form-btns { display: flex; gap: 6px; }
+  .form-btns button { flex: 1; border-radius: 8px; padding: 10px 0; font-size: 13px; font-weight: 600; cursor: pointer; border: none; font-family: inherit; transition: opacity .15s ease; }
+  .form-btns button:active { opacity: .8; }
+  .btn-primary { background: var(--teal); color: #fff; }
+  .btn-primary:hover { background: var(--navy); }
+  .btn-secondary { background: #F0F4F3; color: var(--slate); border: 1px solid var(--border) !important; }
+  .main { padding: 18px; overflow-x: auto; }
+  .empty-msg { color: #7C8A88; font-size: 14px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
+  @media (min-width: 700px) { .summary-grid { grid-template-columns: repeat(7, 1fr); } }
+  .card { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 13px 15px; transition: transform .15s ease, box-shadow .15s ease; }
+  .card:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(15,76,92,0.08); }
+  .card.highlight { background: linear-gradient(135deg, var(--slate), var(--navy)); border-color: transparent; }
+  .card-label { font-size: 10px; font-weight: 700; color: #8B9694; text-transform: uppercase; letter-spacing: 0.5px; }
+  .card.highlight .card-label { color: #AFC7C3; }
+  .card-value { font-size: 19px; font-weight: 800; margin-top: 5px; letter-spacing: -0.3px; }
+  .card.highlight .card-value { color: #fff; }
+  .card-sub { font-size: 11px; color: #9CA6A4; margin-top: 3px; }
+  .card.highlight .card-sub { color: #C9DEDA; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  thead tr { background: #FAFCFB; border-bottom: 1px solid var(--border); }
+  th { text-align: left; padding: 11px 14px; font-size: 11px; font-weight: 700; color: #7C8A88; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 9px 14px; border-bottom: 1px solid #F0F3F2; vertical-align: middle; }
+  tr.weekend { background: #FAFBFB; }
+  tr.pre-join { opacity: 0.42; }
+  tr:hover td { background: #FAFCFB; }
+
+  .pill-group { display: inline-flex; gap: 5px; flex-wrap: wrap; }
+  .pill { border: 1.5px solid var(--border); background: #fff; color: #7C8A88; border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .12s ease; }
+  .pill:hover { border-color: #B7C4C1; }
+  .pill:active { transform: scale(0.95); }
+  .pill.sel-present { background: var(--present-bg); color: var(--present); border-color: var(--present); }
+  .pill.sel-leave { background: var(--leave-bg); color: var(--leave); border-color: var(--leave); }
+  .pill.sel-leaveUnpaid { background: var(--leave-unpaid-bg); color: var(--leave-unpaid); border-color: var(--leave-unpaid); }
+  .pill.sel-absent { background: var(--absent-bg); color: var(--absent); border-color: var(--absent); }
+  .pill.sel-onhold { background: #FBF3DC; color: #9C7A1F; border-color: #C9A227; }
+  .pill.sel-worked { background: var(--present-bg); color: var(--present); border-color: var(--present); }
+
+  input[type="time"], input[type="date"] { border: 1.5px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; width: 102px; font-family: inherit; transition: border-color .15s ease; }
+  input[type="time"]:focus, input[type="date"]:focus { outline: none; border-color: var(--teal); }
+  .half-tag { display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 700; color: var(--leave-unpaid); background: var(--leave-unpaid-bg); border-radius: 5px; padding: 2px 7px; }
+  .note { margin-top: 16px; font-size: 12px; color: #7C8A88; line-height: 1.7; }
+  .payroll-toolbar { display: flex; justify-content: flex-end; margin-bottom: 14px; }
+  .print-btn { background: var(--teal); color: #fff; border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background .15s ease; }
+  .print-btn:hover { background: var(--navy); }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  #mainContent { animation: fadeIn .18s ease; }
+
+  @media (max-width: 640px) {
+    table.responsive td { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-bottom: 1px solid #F0F3F2; }
+    table.responsive thead { display: none; }
+    table.responsive, table.responsive tbody, table.responsive tr { display: block; width: 100%; }
+    table.responsive tr { border-bottom: 6px solid var(--offwhite); padding: 4px 0; }
+    table.responsive td::before { content: attr(data-label); font-size: 10px; font-weight: 700; color: #8B9694; text-transform: uppercase; letter-spacing: 0.4px; flex-shrink: 0; }
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media print { header, .sidebar, .payroll-toolbar { display: none !important; } body { background: #fff; padding-bottom:0; } .main { padding: 0; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title">Renuka Devi Pharma — Attendance & Salary Ledger</div>
+  <div class="tabs">
+    <button class="tab-btn active" id="tabAttendance">Attendance</button>
+    <button class="tab-btn" id="tabPayroll">Payroll Sheet</button>
+    <button class="tab-btn" id="tabReport">Detailed Report</button>
+  </div>
+  <div class="month-nav">
+    <button class="nav" id="prevMonth">‹</button>
+    <span class="month-label" id="monthLabel"></span>
+    <button class="nav" id="nextMonth">›</button>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="sidebar">
+    <h3>Employees</h3>
+    <div id="empList"></div>
+    <button class="add-btn" id="showAddBtn">+ Add employee</button>
+    <div class="add-form" id="addForm" style="display:none;">
+      <select id="newType">
+        <option value="regular">Regular (monthly salary)</option>
+        <option value="fillin">Fill-in (paid per day)</option>
+      </select>
+      <input type="text" id="newName" placeholder="Name">
+      <input type="number" id="newSalary" placeholder="Monthly salary (₹)">
+      <input type="number" id="newDailyRate" placeholder="Per-day rate (₹)" style="display:none;">
+      <div id="joinDateWrap">
+        <label style="font-size:11px;color:#7C8A88;">Joining date (leave blank if not mid-month)</label>
+        <input type="date" id="newJoinDate" style="width:100%;">
+      </div>
+      <div class="form-btns">
+        <button class="btn-primary" id="confirmAdd">Add</button>
+        <button class="btn-secondary" id="cancelAdd">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <div class="main" id="mainContent"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyD0QIvALWVBvS0vXtM1xjQjXWrAz2V0AQ0",
+  authDomain: "rd-a-s.firebaseapp.com",
+  projectId: "rd-a-s",
+  storageBucket: "rd-a-s.firebasestorage.app",
+  messagingSenderId: "575168746730",
+  appId: "1:575168746730:web:050746d57c870bcb0db393",
+  measurementId: "G-99KHDH8KZQ"
+};
+let db = null, ledgerDoc = null;
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  ledgerDoc = db.collection("ledger").doc("shared");
+} catch (err) {
+  console.error("Firebase init failed, working offline:", err);
+}
+let firestoreReady = false;
+</script>
+<script>
+const STATUS = {
+  present: { label: "Present" },
+  leave: { label: "Leave" },
+  leaveUnpaid: { label: "Leave" },
+  absent: { label: "Absent" },
+  unmarked: { label: "—" },
+  worked: { label: "Worked" },
+};
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const PAID_LEAVE_QUOTA = 2;
+const LATE_CUTOFF = "10:30";
+const SHIFT_END = "21:00";
+
+let data = JSON.parse(localStorage.getItem("attendanceAppData") || "null") || {
+  employees: [{ id: 1, name: "Ravi Kumar", type: "regular", salary: 25000, joiningDate: "" }],
+  selectedId: 1, attendance: {}, payments: {}
+};
+let today = new Date();
+let viewYear = today.getFullYear();
+let viewMonth = today.getMonth();
+let currentTab = "attendance";
+
+function save() {
+  localStorage.setItem("attendanceAppData", JSON.stringify(data));
+  if (ledgerDoc) ledgerDoc.set(data).catch(err => console.error("Sync failed:", err));
+}
+
+if (ledgerDoc) {
+  ledgerDoc.onSnapshot((snap) => {
+    if (snap.exists) {
+      data = snap.data();
+      localStorage.setItem("attendanceAppData", JSON.stringify(data));
+    } else if (!firestoreReady) {
+      ledgerDoc.set(data);
+    }
+    firestoreReady = true;
+    render();
+  }, (err) => console.error("Firestore listen failed:", err));
+}
+
+function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+function dateKey(empId, y, m, d) { return empId + "_" + y + "-" + String(m+1).padStart(2,"0") + "-" + String(d).padStart(2,"0"); }
+function paymentKey(empId, y, m) { return empId + "_" + y + "-" + String(m+1).padStart(2,"0"); }
+function timeToMinutes(t) { if (!t) return null; const [h,m] = t.split(":").map(Number); return h*60+m; }
+function fmtDate(d) { return String(d).padStart(2,"0") + " " + MONTH_NAMES[viewMonth].slice(0,3); }
+function escapeHtml(str) { const d = document.createElement("div"); d.textContent = str; return d.innerHTML; }
+
+function isHalfDay(rec) {
+  if (!rec || rec.status !== "present") return false;
+  const inMin = timeToMinutes(rec.time), outMin = timeToMinutes(rec.outTime);
+  const late = inMin !== null && inMin > timeToMinutes(LATE_CUTOFF);
+  const early = outMin !== null && outMin < timeToMinutes(SHIFT_END);
+  return late || early;
+}
+
+function joinStartDay(emp) {
+  if (!emp.joiningDate) return 1;
+  const [jy, jm, jd] = emp.joiningDate.split("-").map(Number);
+  if (jy === viewYear && (jm - 1) === viewMonth) return jd;
+  if (jy > viewYear || (jy === viewYear && (jm - 1) > viewMonth)) return daysInMonth(viewYear, viewMonth) + 1;
+  return 1;
+}
+
+function computeSummary(emp) {
+  const totalDays = daysInMonth(viewYear, viewMonth);
+  if (emp.type === "fillin") {
+    let worked = 0;
+    for (let d = 1; d <= totalDays; d++) {
+      const rec = data.attendance[dateKey(emp.id, viewYear, viewMonth, d)];
+      if (rec && rec.status === "worked") worked++;
+    }
+    return { isFillin: true, worked, dailyRate: emp.dailyRate, finalSalary: worked * emp.dailyRate, totalDays };
+  }
+  const startDay = joinStartDay(emp);
+  const effectiveDays = Math.max(0, totalDays - startDay + 1);
+  let present = 0, leave = 0, leaveUnpaid = 0, onHold = 0, halfDay = 0;
+  for (let d = startDay; d <= totalDays; d++) {
+    const rec = data.attendance[dateKey(emp.id, viewYear, viewMonth, d)];
+    if (!rec) continue;
+    if (rec.status === "present") { if (isHalfDay(rec)) halfDay++; else present++; }
+    else if (rec.status === "leave") { leave++; if (rec.leavePaid === false) leaveUnpaid++; }
+    else if (rec.status === "onhold") onHold++;
+  }
+  const deductibleDays = leaveUnpaid + (halfDay * 0.5);
+  const perDayRate = emp.salary / totalDays;
+  const baseProratedPay = perDayRate * effectiveDays;
+  const deduction = perDayRate * deductibleDays;
+  const finalSalary = Math.max(0, baseProratedPay - deduction);
+  return { isFillin: false, present, leave, leaveUnpaid, onHold, halfDay, deductibleDays, perDayRate, deduction, finalSalary, totalDays, startDay, effectiveDays };
+}
+
+function render() {
+  document.getElementById("monthLabel").textContent = MONTH_NAMES[viewMonth] + " " + viewYear;
+  document.getElementById("tabAttendance").classList.toggle("active", currentTab === "attendance");
+  document.getElementById("tabPayroll").classList.toggle("active", currentTab === "payroll");
+  document.getElementById("tabReport").classList.toggle("active", currentTab === "report");
+  document.querySelector(".sidebar").style.display = currentTab === "payroll" ? "none" : "block";
+  renderEmployeeList();
+  if (currentTab === "attendance") renderAttendance();
+  else if (currentTab === "report") renderReport();
+  else renderPayroll();
+}
+
+function renderEmployeeList() {
+  const list = document.getElementById("empList");
+  list.innerHTML = "";
+  data.employees.forEach(emp => {
+    const row = document.createElement("div");
+    row.className = "emp-row" + (emp.id === data.selectedId ? " active" : "");
+    const sub = emp.type === "fillin" ? "₹" + emp.dailyRate.toLocaleString("en-IN") + "/day · Fill-in" : "₹" + emp.salary.toLocaleString("en-IN") + "/mo" + (emp.joiningDate ? " · joined " + emp.joiningDate.split("-").reverse().join("-") : "");
+    row.innerHTML = `<div><div class="emp-name">${escapeHtml(emp.name)}</div><div class="emp-sub">${sub}</div></div><span class="emp-del">✕</span>`;
+    row.addEventListener("click", () => { data.selectedId = emp.id; save(); render(); });
+    row.querySelector(".emp-del").addEventListener("click", (e) => {
+      e.stopPropagation();
+      data.employees = data.employees.filter(x => x.id !== emp.id);
+      if (data.selectedId === emp.id) data.selectedId = data.employees.length ? data.employees[0].id : null;
+      save(); render();
+    });
+    list.appendChild(row);
+  });
+}
+
+function pillGroup(options, current, day) {
+  return `<div class="pill-group">` + options.map(([val,label]) => {
+    const sel = current === val ? " sel-" + val : "";
+    return `<button type="button" class="pill${sel}" data-day="${day}" data-status="${val}">${label}</button>`;
+  }).join("") + `</div>`;
+}
+
+function renderAttendance() {
+  const main = document.getElementById("mainContent");
+  const emp = data.employees.find(e => e.id === data.selectedId);
+  if (!emp) { main.innerHTML = `<div class="empty-msg">Add an employee to get started.</div>`; return; }
+  const s = computeSummary(emp);
+  const pKey = paymentKey(emp.id, viewYear, viewMonth);
+  const paidOn = data.payments[pKey] || "";
+  const paidOnCard = `<div class="card"><div class="card-label">Paid on</div><input type="date" id="paidOnInput" value="${paidOn}" style="margin-top:6px;width:100%;"><div class="card-sub">${paidOn ? "Marked paid" : "Not yet paid"}</div></div>`;
+
+  if (emp.type === "fillin") {
+    main.innerHTML = `
+      <div class="summary-grid">
+        <div class="card"><div class="card-label">Days worked</div><div class="card-value" style="color:var(--present)">${s.worked}</div></div>
+        <div class="card"><div class="card-label">Per-day rate</div><div class="card-value" style="color:#7C8A88">₹${s.dailyRate}</div></div>
+        <div class="card highlight"><div class="card-label">Total earned</div><div class="card-value">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</div></div>
+        ${paidOnCard}
+      </div>
+      <table class="responsive"><thead><tr><th>Date</th><th>Day</th><th>Status</th></tr></thead><tbody id="attBody"></tbody></table>
+      <div class="note">Fill-in worker: paid only for days marked "Worked", no leave/absent rules apply.</div>
+    `;
+    const tbody = document.getElementById("attBody");
+    let rows = "";
+    for (let day = 1; day <= s.totalDays; day++) {
+      const key = dateKey(emp.id, viewYear, viewMonth, day);
+      const rec = data.attendance[key] || {};
+      const dow = new Date(viewYear, viewMonth, day).toLocaleDateString("en-US", { weekday: "short" });
+      const isWeekend = dow === "Sat" || dow === "Sun";
+      rows += `<tr class="${isWeekend?"weekend":""}">
+        <td data-label="Date">${String(day).padStart(2,"0")} ${MONTH_NAMES[viewMonth].slice(0,3)}</td>
+        <td data-label="Day" style="color:${isWeekend?"#9CA3AF":"#374151"}">${dow}</td>
+        <td data-label="Status">${pillGroup([["worked","Worked"]], rec.status, day)}</td>
+      </tr>`;
+    }
+    tbody.innerHTML = rows;
+    tbody.addEventListener("click", (e) => {
+      const btn = e.target.closest(".pill"); if (!btn) return;
+      const day = Number(btn.dataset.day), val = btn.dataset.status;
+      const key = dateKey(emp.id, viewYear, viewMonth, day);
+      const cur = (data.attendance[key] || {}).status;
+      data.attendance[key] = { status: cur === val ? "unmarked" : val };
+      save(); render();
+    });
+    document.getElementById("paidOnInput").addEventListener("change", (e) => { data.payments[pKey] = e.target.value; save(); render(); });
+    return;
+  }
+
+  main.innerHTML = `
+    <div class="summary-grid">
+      <div class="card"><div class="card-label">Present</div><div class="card-value" style="color:var(--present)">${s.present}</div></div>
+      <div class="card"><div class="card-label">Half days</div><div class="card-value" style="color:var(--leave-unpaid)">${s.halfDay}</div></div>
+      <div class="card"><div class="card-label">Leaves taken</div><div class="card-value" style="color:var(--leave)">${s.leave}</div><div class="card-sub">${s.leaveUnpaid} unpaid</div></div>
+      <div class="card"><div class="card-label">On hold</div><div class="card-value" style="color:#9C7A1F">${s.onHold}</div></div>
+      <div class="card"><div class="card-label">Deducted days</div><div class="card-value" style="color:#7C8A88">${s.deductibleDays.toFixed(2)}</div></div>
+      <div class="card highlight"><div class="card-label">Salary this month</div><div class="card-value">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</div><div class="card-sub">${emp.joiningDate && s.startDay>1 ? "Prorated: " + s.effectiveDays + "/" + s.totalDays + " days" : (s.deduction>0 ? "−₹"+Math.round(s.deduction).toLocaleString("en-IN")+" deducted" : "No deduction")}</div></div>
+      ${paidOnCard}
+    </div>
+    <table class="responsive"><thead><tr><th>Date</th><th>Day</th><th>Status</th><th>In time</th><th>Out time</th></tr></thead><tbody id="attBody"></tbody></table>
+    <div class="note">Shift 10:00 AM–9:00 PM. Late (after ${LATE_CUTOFF} AM) or early leave (before 9 PM) = half day (deducted). Tap Leave once = paid, tap again = unpaid (deducted), tap again to clear. On Hold flags a pending day and deducts nothing. ${emp.joiningDate ? "Days before joining date are excluded, not paid." : ""}</div>
+  `;
+  const tbody = document.getElementById("attBody");
+  let rows = "";
+  for (let day = 1; day <= s.totalDays; day++) {
+    const key = dateKey(emp.id, viewYear, viewMonth, day);
+    const rec = data.attendance[key] || {};
+    const dow = new Date(viewYear, viewMonth, day).toLocaleDateString("en-US", { weekday: "short" });
+    const isWeekend = dow === "Sat" || dow === "Sun";
+    const preJoin = day < s.startDay;
+    const half = isHalfDay(rec);
+    const statusCell = preJoin ? '<span style="font-size:11px;color:#9CA3AF;">Before joining</span>' :
+      pillGroupCustom(day, rec) + (half ? '<span class="half-tag">HALF DAY</span>' : "");
+    rows += `<tr class="${preJoin?"pre-join":(isWeekend?"weekend":"")}">
+      <td data-label="Date">${String(day).padStart(2,"0")} ${MONTH_NAMES[viewMonth].slice(0,3)}</td>
+      <td data-label="Day" style="color:${isWeekend?"#9CA3AF":"#374151"}">${dow}</td>
+      <td data-label="Status">${statusCell}</td>
+      <td data-label="In time">${preJoin ? "" : `<input type="time" data-field="time" data-day="${day}" value="${rec.time||""}">`}</td>
+      <td data-label="Out time">${preJoin ? "" : `<input type="time" data-field="outTime" data-day="${day}" value="${rec.outTime||""}">`}</td>
+    </tr>`;
+  }
+  tbody.innerHTML = rows;
+
+  tbody.addEventListener("click", (e) => {
+    const btn = e.target.closest(".pill"); if (!btn) return;
+    const day = Number(btn.dataset.day), val = btn.dataset.status;
+    const key = dateKey(emp.id, viewYear, viewMonth, day);
+    const rec = data.attendance[key] || {};
+    if (val === "leave") {
+      if (rec.status !== "leave") {
+        let paidCount = 0;
+        for (let d = 1; d <= s.totalDays; d++) {
+          const r = data.attendance[dateKey(emp.id, viewYear, viewMonth, d)];
+          if (r && r.status === "leave" && r.leavePaid !== false) paidCount++;
+        }
+        data.attendance[key] = { ...rec, status: "leave", leavePaid: paidCount < 2 };
+      }
+      else if (rec.leavePaid !== false) data.attendance[key] = { ...rec, status: "leave", leavePaid: false };
+      else data.attendance[key] = { ...rec, status: "unmarked" };
+    } else {
+      data.attendance[key] = { ...rec, status: rec.status === val ? "unmarked" : val };
+    }
+    save(); render();
+  });
+  tbody.addEventListener("change", (e) => {
+    if (e.target.tagName !== "INPUT") return;
+    const day = Number(e.target.dataset.day), f = e.target.dataset.field;
+    const key = dateKey(emp.id, viewYear, viewMonth, day);
+    const rec = data.attendance[key] || {};
+    const newStatus = (rec.status === "leave" || rec.status === "onhold") ? rec.status : "present";
+    data.attendance[key] = { ...rec, status: newStatus, [f]: e.target.value };
+    save(); render();
+  });
+  document.getElementById("paidOnInput").addEventListener("change", (e) => { data.payments[pKey] = e.target.value; save(); render(); });
+}
+
+// Pill group for regular attendance: Present / Leave (paid or unpaid) / On Hold
+function pillGroupCustom(day, rec) {
+  const opts = [["present","Present"],["leave","Leave"],["onhold","On Hold"]];
+  return `<div class="pill-group">` + opts.map(([val,label]) => {
+    let cls = "";
+    if (val === "leave" && rec.status === "leave") cls = rec.leavePaid === false ? " sel-leaveUnpaid" : " sel-leave";
+    else if (val === "onhold" && rec.status === "onhold") cls = " sel-onhold";
+    else if (rec.status === val) cls = " sel-" + val;
+    return `<button type="button" class="pill${cls}" data-day="${day}" data-status="${val}">${label}</button>`;
+  }).join("") + `</div>`;
+}
+
+function renderPayroll() {
+  const main = document.getElementById("mainContent");
+  if (!data.employees.length) { main.innerHTML = `<div class="empty-msg">Add an employee to see the payroll sheet.</div>`; return; }
+  let rows = "", totalPayout = 0;
+  data.employees.forEach(emp => {
+    const s = computeSummary(emp);
+    totalPayout += s.finalSalary;
+    const paidOn = data.payments[paymentKey(emp.id, viewYear, viewMonth)] || "";
+    const paidCell = paidOn ? paidOn.split("-").reverse().join("-") : '<span style="color:var(--absent);">Not paid</span>';
+    if (s.isFillin) {
+      rows += `<tr><td>${escapeHtml(emp.name)} <span style="font-size:10px;color:#7C8A88;">(Fill-in)</span></td><td>₹${s.dailyRate}/day</td><td>${s.worked}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td style="font-weight:700">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</td><td>${paidCell}</td></tr>`;
+    } else {
+      rows += `<tr><td>${escapeHtml(emp.name)}</td><td>₹${emp.salary.toLocaleString("en-IN")}</td><td>${s.present}</td><td>${s.halfDay}</td><td>${s.leave} (${s.leaveUnpaid} unpaid)</td><td>${s.onHold}</td><td>${s.deductibleDays.toFixed(2)}</td><td>−₹${Math.round(s.deduction).toLocaleString("en-IN")}</td><td style="font-weight:700">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</td><td>${paidCell}</td></tr>`;
+    }
+  });
+  main.innerHTML = `
+    <div class="payroll-toolbar"><button class="print-btn" id="printBtn" onclick="doPrint()">Print / Save as PDF</button></div>
+    <h2 style="margin:0 0 12px;font-size:17px;">Payroll — ${MONTH_NAMES[viewMonth]} ${viewYear}</h2>
+    <table><thead><tr><th>Employee</th><th>Salary/Rate</th><th>Present/Worked</th><th>Half days</th><th>Leaves</th><th>On Hold</th><th>Deducted days</th><th>Deduction</th><th>Payable</th><th>Paid on</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="note">Total payout for ${MONTH_NAMES[viewMonth]} ${viewYear}: <b>₹${Math.round(totalPayout).toLocaleString("en-IN")}</b></div>
+  `;
+}
+
+function renderReport() {
+  const main = document.getElementById("mainContent");
+  const emp = data.employees.find(e => e.id === data.selectedId);
+  if (!emp) { main.innerHTML = `<div class="empty-msg">Select an employee from the list to view their payslip.</div>`; return; }
+  const s = computeSummary(emp);
+  const paidOn = data.payments[paymentKey(emp.id, viewYear, viewMonth)] || "";
+  const paidTag = `<div style="font-size:11px;margin-top:4px;color:${paidOn?"var(--present)":"var(--absent)"};font-weight:700;">${paidOn ? "Paid on " + paidOn.split("-").reverse().join("-") : "Not yet paid"}</div>`;
+
+  if (s.isFillin) {
+    main.innerHTML = `
+      <div class="payroll-toolbar"><button class="print-btn" id="printBtn" onclick="doPrint()">Print / Save as PDF</button></div>
+      <div style="background:#fff;border:1px solid var(--border);border-radius:16px;padding:24px;max-width:640px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--teal);padding-bottom:16px;margin-bottom:18px;">
+          <div><div style="font-size:11px;color:#7C8A88;text-transform:uppercase;letter-spacing:.4px;">Renuka Devi Pharma</div>
+          <div style="font-size:20px;font-weight:800;margin-top:2px;">${escapeHtml(emp.name)} <span style="font-size:11px;color:#7C8A88;font-weight:500;">(Fill-in)</span></div>
+          <div style="font-size:12px;color:#7C8A88;">Payslip — ${MONTH_NAMES[viewMonth]} ${viewYear}</div></div>
+          <div style="text-align:right;"><div style="font-size:11px;color:#7C8A88;">Net Payable</div>
+          <div style="font-size:23px;font-weight:800;color:var(--navy);">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</div>${paidTag}</div>
+        </div>
+        <table style="border:none;"><tbody>
+          <tr><td style="width:45%;color:#7C8A88;">Per-day rate</td><td style="font-weight:600;">₹${s.dailyRate}</td></tr>
+          <tr><td style="color:#7C8A88;">Days worked</td><td>${s.worked}</td></tr>
+          <tr style="border-top:1px solid var(--border);"><td style="font-weight:700;padding-top:12px;">Net amount paid</td><td style="font-weight:800;padding-top:12px;color:var(--navy);">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</td></tr>
+        </tbody></table>
+      </div>`;
+    return;
+  }
+
+  const totalDays = daysInMonth(viewYear, viewMonth);
+  const paidLeaveDates=[], unpaidLeaveDates=[], onHoldDates=[], halfDayDates=[], presentDates=[];
+  for (let d = s.startDay; d <= totalDays; d++) {
+    const rec = data.attendance[dateKey(emp.id, viewYear, viewMonth, d)];
+    if (!rec || !rec.status) continue;
+    if (rec.status === "leave") (rec.leavePaid === false ? unpaidLeaveDates : paidLeaveDates).push(fmtDate(d));
+    else if (rec.status === "onhold") onHoldDates.push(fmtDate(d));
+    else if (rec.status === "present") { if (isHalfDay(rec)) halfDayDates.push(fmtDate(d)); else presentDates.push(fmtDate(d)); }
+  }
+  const listOrDash = (arr) => arr.length ? arr.join(", ") : "—";
+  main.innerHTML = `
+    <div class="payroll-toolbar"><button class="print-btn" id="printBtn" onclick="doPrint()">Print / Save as PDF</button></div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:16px;padding:24px;max-width:640px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--teal);padding-bottom:16px;margin-bottom:18px;">
+        <div><div style="font-size:11px;color:#7C8A88;text-transform:uppercase;letter-spacing:.4px;">Renuka Devi Pharma</div>
+        <div style="font-size:20px;font-weight:800;margin-top:2px;">${escapeHtml(emp.name)}</div>
+        <div style="font-size:12px;color:#7C8A88;">Payslip — ${MONTH_NAMES[viewMonth]} ${viewYear}</div></div>
+        <div style="text-align:right;"><div style="font-size:11px;color:#7C8A88;">Net Payable</div>
+        <div style="font-size:23px;font-weight:800;color:var(--navy);">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</div>${paidTag}</div>
+      </div>
+      <table style="border:none;"><tbody>
+        <tr><td style="width:45%;color:#7C8A88;">Monthly salary</td><td style="font-weight:600;">₹${emp.salary.toLocaleString("en-IN")}</td></tr>
+        <tr><td style="color:#7C8A88;">Per-day rate</td><td style="font-weight:600;">₹${s.perDayRate.toFixed(2)}</td></tr>
+        ${emp.joiningDate && s.startDay>1 ? `<tr><td style="color:#7C8A88;">Joined this month</td><td>${fmtDate(s.startDay)} (${s.effectiveDays}/${s.totalDays} days employed)</td></tr>` : ""}
+        <tr><td style="color:#7C8A88;">Days present (full)</td><td>${s.present} <span style="color:#9CA6A4;">(${listOrDash(presentDates)})</span></td></tr>
+        <tr><td style="color:#7C8A88;">Half days (late/early)</td><td>${s.halfDay} <span style="color:var(--leave-unpaid);">(${listOrDash(halfDayDates)})</span></td></tr>
+        <tr><td style="color:#7C8A88;">Paid leave</td><td>${paidLeaveDates.length} <span style="color:var(--leave);">(${listOrDash(paidLeaveDates)})</span></td></tr>
+        <tr><td style="color:#7C8A88;">Unpaid leave</td><td>${unpaidLeaveDates.length} <span style="color:var(--leave-unpaid);">(${listOrDash(unpaidLeaveDates)})</span></td></tr>
+        <tr><td style="color:#7C8A88;">On hold (pending)</td><td>${onHoldDates.length} <span style="color:#9C7A1F;">(${listOrDash(onHoldDates)})</span></td></tr>
+        <tr><td style="color:#7C8A88;">Total deducted days</td><td>${s.deductibleDays.toFixed(2)}</td></tr>
+        <tr><td style="color:#7C8A88;">Deduction amount</td><td style="font-weight:600;color:var(--absent);">−₹${Math.round(s.deduction).toLocaleString("en-IN")}</td></tr>
+        <tr style="border-top:1px solid var(--border);"><td style="font-weight:700;padding-top:12px;">Net amount paid</td><td style="font-weight:800;padding-top:12px;color:var(--navy);">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</td></tr>
+      </tbody></table>
+    </div>`;
+}
+
+
+function doPrint() {
+  const printCss = document.querySelector('style').innerHTML;
+  const content = document.getElementById('mainContent').innerHTML;
+  let frame = document.getElementById('printFrame');
+  if (frame) frame.remove();
+  frame = document.createElement('iframe');
+  frame.id = 'printFrame';
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  document.body.appendChild(frame);
+  const doc = frame.contentWindow.document;
+  doc.open();
+  doc.write('<html><head><title>Print</title><style>' + printCss + '</style></head><body style="padding:20px;">' + content + '</body></html>');
+  doc.close();
+  frame.onload = () => { frame.contentWindow.focus(); frame.contentWindow.print(); };
+  setTimeout(() => { frame.contentWindow.focus(); frame.contentWindow.print(); }, 500);
+}
+
+document.getElementById("tabAttendance").addEventListener("click", () => { currentTab="attendance"; render(); });
+document.getElementById("tabPayroll").addEventListener("click", () => { currentTab="payroll"; render(); });
+document.getElementById("tabReport").addEventListener("click", () => { currentTab="report"; render(); });
+document.getElementById("prevMonth").addEventListener("click", () => { viewMonth--; if(viewMonth<0){viewMonth=11;viewYear--;} render(); });
+document.getElementById("nextMonth").addEventListener("click", () => { viewMonth++; if(viewMonth>11){viewMonth=0;viewYear++;} render(); });
+document.getElementById("showAddBtn").addEventListener("click", () => { document.getElementById("addForm").style.display="flex"; document.getElementById("showAddBtn").style.display="none"; });
+document.getElementById("cancelAdd").addEventListener("click", () => { document.getElementById("addForm").style.display="none"; document.getElementById("showAddBtn").style.display="block"; });
+document.getElementById("newType").addEventListener("change", (e) => {
+  const isFillin = e.target.value === "fillin";
+  document.getElementById("newSalary").style.display = isFillin ? "none" : "block";
+  document.getElementById("newDailyRate").style.display = isFillin ? "block" : "none";
+  document.getElementById("joinDateWrap").style.display = isFillin ? "none" : "block";
+});
+document.getElementById("confirmAdd").addEventListener("click", () => {
+  const type = document.getElementById("newType").value;
+  const name = document.getElementById("newName").value.trim();
+  if (!name) return;
+  const id = Date.now();
+  if (type === "fillin") {
+    const rate = Number(document.getElementById("newDailyRate").value);
+    if (!rate || rate <= 0) return;
+    data.employees.push({ id, name, type, dailyRate: rate });
+  } else {
+    const salary = Number(document.getElementById("newSalary").value);
+    if (!salary || salary <= 0) return;
+    const joiningDate = document.getElementById("newJoinDate").value;
+    data.employees.push({ id, name, type, salary, joiningDate });
+  }
+  data.selectedId = id;
+  document.getElementById("newName").value = "";
+  document.getElementById("newSalary").value = "";
+  document.getElementById("newDailyRate").value = "";
+  document.getElementById("newJoinDate").value = "";
+  document.getElementById("addForm").style.display = "none";
+  document.getElementById("showAddBtn").style.display = "block";
+  save(); render();
+});
+
+render();
+</script>
+</body>
+</html>
