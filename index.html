@@ -208,7 +208,8 @@ if (ledgerDoc) {
     }
     firestoreReady = true;
     render();
-  }, (err) => console.error("Firestore listen failed:", err));
+  }, (err) => { console.error("Firestore listen failed:", err); firestoreReady = true; render(); });
+  setTimeout(() => { if (!firestoreReady) { firestoreReady = true; render(); } }, 6000);
 }
 
 function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
@@ -263,6 +264,11 @@ function computeSummary(emp) {
 }
 
 function render() {
+  if (ledgerDoc && !firestoreReady) {
+    document.getElementById("mainContent").innerHTML = `<div class="empty-msg">Syncing latest data…</div>`;
+    document.querySelector(".sidebar").style.display = "none";
+    return;
+  }
   document.getElementById("monthLabel").textContent = MONTH_NAMES[viewMonth] + " " + viewYear;
   document.getElementById("tabAttendance").classList.toggle("active", currentTab === "attendance");
   document.getElementById("tabPayroll").classList.toggle("active", currentTab === "payroll");
@@ -572,3 +578,4 @@ render();
 </script>
 </body>
 </html>
+
