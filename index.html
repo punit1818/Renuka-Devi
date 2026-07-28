@@ -164,7 +164,7 @@ let db = null, ledgerDoc = null;
 try {
   firebase.initializeApp(firebaseConfig);
   db = firebase.firestore();
-  ledgerDoc = db.collection("ledger").doc("shared");
+  ledgerDoc = db.collection("ledger").doc("client");
 } catch (err) {
   console.error("Firebase init failed, working offline:", err);
 }
@@ -186,8 +186,10 @@ const SHIFT_END = "21:00";
 
 let data = JSON.parse(localStorage.getItem("attendanceAppData") || "null") || {
   employees: [{ id: 1, name: "Ravi Kumar", type: "regular", salary: 25000, joiningDate: "" }],
-  selectedId: 1, attendance: {}, payments: {}
+  selectedId: 1, attendance: {}, payments: {}, advances: {}
 };
+if (!data.advances) data.advances = {};
+if (!data.payments) data.payments = {};
 let today = new Date();
 let viewYear = today.getFullYear();
 let viewMonth = today.getMonth();
@@ -202,6 +204,8 @@ if (ledgerDoc) {
   ledgerDoc.onSnapshot((snap) => {
     if (snap.exists) {
       data = snap.data();
+      if (!data.advances) data.advances = {};
+      if (!data.payments) data.payments = {};
       localStorage.setItem("attendanceAppData", JSON.stringify(data));
     } else if (!firestoreReady) {
       ledgerDoc.set(data);
@@ -235,15 +239,27 @@ function joinStartDay(emp) {
   return 1;
 }
 
+function monthAdvanceTotal(emp) {
+  const list = data.advances[emp.id] || [];
+  return list.filter(a => {
+    const [ay, am] = a.date.split("-").map(Number);
+    return ay === viewYear && (am - 1) === viewMonth;
+  }).reduce((sum, a) => sum + Number(a.amount), 0);
+}
+
 function computeSummary(emp) {
   const totalDays = daysInMonth(viewYear, viewMonth);
+  const advance = monthAdvanceTotal(emp);
   if (emp.type === "fillin") {
-    let worked = 0;
+    let halfCount = 0, fullCount = 0, earned = 0;
     for (let d = 1; d <= totalDays; d++) {
       const rec = data.attendance[dateKey(emp.id, viewYear, viewMonth, d)];
-      if (rec && rec.status === "worked") worked++;
+      if (!rec) continue;
+      if (rec.dayType === "half") halfCount++;
+      else if (rec.dayType === "full") fullCount++;
+      earned += Number(rec.amount) || 0;
     }
-    return { isFillin: true, worked, dailyRate: emp.dailyRate, finalSalary: worked * emp.dailyRate, totalDays };
+    return { isFillin: true, halfCount, fullCount, advance, finalSalary: Math.max(0, earned - advance), totalDays };
   }
   const startDay = joinStartDay(emp);
   const effectiveDays = Math.max(0, totalDays - startDay + 1);
@@ -259,8 +275,8 @@ function computeSummary(emp) {
   const perDayRate = emp.salary / totalDays;
   const baseProratedPay = perDayRate * effectiveDays;
   const deduction = perDayRate * deductibleDays;
-  const finalSalary = Math.max(0, baseProratedPay - deduction);
-  return { isFillin: false, present, leave, leaveUnpaid, onHold, halfDay, deductibleDays, perDayRate, deduction, finalSalary, totalDays, startDay, effectiveDays };
+  const finalSalary = Math.max(0, baseProratedPay - deduction - advance);
+  return { isFillin: false, present, leave, leaveUnpaid, onHold, halfDay, deductibleDays, perDayRate, deduction, advance, finalSalary, totalDays, startDay, effectiveDays };
 }
 
 function render() {
@@ -269,15 +285,20 @@ function render() {
     document.querySelector(".sidebar").style.display = "none";
     return;
   }
-  document.getElementById("monthLabel").textContent = MONTH_NAMES[viewMonth] + " " + viewYear;
-  document.getElementById("tabAttendance").classList.toggle("active", currentTab === "attendance");
-  document.getElementById("tabPayroll").classList.toggle("active", currentTab === "payroll");
-  document.getElementById("tabReport").classList.toggle("active", currentTab === "report");
-  document.querySelector(".sidebar").style.display = currentTab === "payroll" ? "none" : "block";
-  renderEmployeeList();
-  if (currentTab === "attendance") renderAttendance();
-  else if (currentTab === "report") renderReport();
-  else renderPayroll();
+  try {
+    document.getElementById("monthLabel").textContent = MONTH_NAMES[viewMonth] + " " + viewYear;
+    document.getElementById("tabAttendance").classList.toggle("active", currentTab === "attendance");
+    document.getElementById("tabPayroll").classList.toggle("active", currentTab === "payroll");
+    document.getElementById("tabReport").classList.toggle("active", currentTab === "report");
+    document.querySelector(".sidebar").style.display = currentTab === "payroll" ? "none" : "block";
+    renderEmployeeList();
+    if (currentTab === "attendance") renderAttendance();
+    else if (currentTab === "report") renderReport();
+    else renderPayroll();
+  } catch (err) {
+    console.error("Render failed:", err);
+    document.getElementById("mainContent").innerHTML = `<div class="empty-msg" style="color:var(--absent);">Something went wrong loading this view: ${escapeHtml(err.message)}. Try switching tabs or reloading.</div>`;
+  }
 }
 
 function renderEmployeeList() {
@@ -286,7 +307,7 @@ function renderEmployeeList() {
   data.employees.forEach(emp => {
     const row = document.createElement("div");
     row.className = "emp-row" + (emp.id === data.selectedId ? " active" : "");
-    const sub = emp.type === "fillin" ? "₹" + emp.dailyRate.toLocaleString("en-IN") + "/day · Fill-in" : "₹" + emp.salary.toLocaleString("en-IN") + "/mo" + (emp.joiningDate ? " · joined " + emp.joiningDate.split("-").reverse().join("-") : "");
+    const sub = emp.type === "fillin" ? "Fill-in worker" : "₹" + emp.salary.toLocaleString("en-IN") + "/mo" + (emp.joiningDate ? " · joined " + emp.joiningDate.split("-").reverse().join("-") : "");
     row.innerHTML = `<div><div class="emp-name">${escapeHtml(emp.name)}</div><div class="emp-sub">${sub}</div></div><span class="emp-del">✕</span>`;
     row.addEventListener("click", () => { data.selectedId = emp.id; save(); render(); });
     row.querySelector(".emp-del").addEventListener("click", (e) => {
@@ -314,17 +335,38 @@ function renderAttendance() {
   const pKey = paymentKey(emp.id, viewYear, viewMonth);
   const paidOn = data.payments[pKey] || "";
   const paidOnCard = `<div class="card"><div class="card-label">Paid on</div><input type="date" id="paidOnInput" value="${paidOn}" style="margin-top:6px;width:100%;"><div class="card-sub">${paidOn ? "Marked paid" : "Not yet paid"}</div></div>`;
+  const advList = data.advances[emp.id] || [];
+  const advancesPanel = `
+    <div class="card" style="grid-column:1/-1;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="card-label">Advances ${s.advance ? "· ₹" + s.advance.toLocaleString("en-IN") + " this month" : ""}</div>
+        <button type="button" id="addAdvanceBtn" class="pill" style="border-color:var(--teal);color:var(--teal);">+ Add advance</button>
+      </div>
+      <div id="advanceList" style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+        ${advList.length ? advList.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(a => `
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;background:#FAFCFB;border:1px solid var(--border);border-radius:8px;padding:6px 10px;">
+            <span>${a.date.split("-").reverse().join("-")} — ₹${Number(a.amount).toLocaleString("en-IN")}</span>
+            <span class="emp-del" data-adv-id="${a.id}" style="cursor:pointer;">✕</span>
+          </div>`).join("") : '<div style="font-size:12px;color:#9CA6A4;">No advances recorded.</div>'}
+      </div>
+      <div id="addAdvanceForm" style="display:none;gap:6px;margin-top:8px;">
+        <input type="date" id="advDate" style="flex:1;">
+        <input type="number" id="advAmount" placeholder="₹ amount" style="flex:1;">
+        <button type="button" id="confirmAdvance" class="print-btn" style="padding:6px 14px;">Add</button>
+      </div>
+    </div>`;
 
   if (emp.type === "fillin") {
     main.innerHTML = `
       <div class="summary-grid">
-        <div class="card"><div class="card-label">Days worked</div><div class="card-value" style="color:var(--present)">${s.worked}</div></div>
-        <div class="card"><div class="card-label">Per-day rate</div><div class="card-value" style="color:#7C8A88">₹${s.dailyRate}</div></div>
+        <div class="card"><div class="card-label">Half days</div><div class="card-value" style="color:var(--leave-unpaid)">${s.halfCount}</div></div>
+        <div class="card"><div class="card-label">Full days</div><div class="card-value" style="color:var(--present)">${s.fullCount}</div></div>
         <div class="card highlight"><div class="card-label">Total earned</div><div class="card-value">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</div></div>
         ${paidOnCard}
+        ${advancesPanel}
       </div>
-      <table class="responsive"><thead><tr><th>Date</th><th>Day</th><th>Status</th></tr></thead><tbody id="attBody"></tbody></table>
-      <div class="note">Fill-in worker: paid only for days marked "Worked", no leave/absent rules apply.</div>
+      <table class="responsive"><thead><tr><th>Date</th><th>Day</th><th>Type</th><th>Amount paid</th></tr></thead><tbody id="attBody"></tbody></table>
+      <div class="note">Fill-in worker: mark Half/Full for reference, and enter the actual amount paid each day worked.</div>
     `;
     const tbody = document.getElementById("attBody");
     let rows = "";
@@ -336,7 +378,8 @@ function renderAttendance() {
       rows += `<tr class="${isWeekend?"weekend":""}">
         <td data-label="Date">${String(day).padStart(2,"0")} ${MONTH_NAMES[viewMonth].slice(0,3)}</td>
         <td data-label="Day" style="color:${isWeekend?"#9CA3AF":"#374151"}">${dow}</td>
-        <td data-label="Status">${pillGroup([["worked","Worked"]], rec.status, day)}</td>
+        <td data-label="Type">${pillGroup([["half","Half"],["full","Full"]], rec.dayType, day)}</td>
+        <td data-label="Amount paid"><input type="number" data-day="${day}" data-field="amount" value="${rec.amount||""}" placeholder="₹0" style="width:100px;"></td>
       </tr>`;
     }
     tbody.innerHTML = rows;
@@ -344,11 +387,18 @@ function renderAttendance() {
       const btn = e.target.closest(".pill"); if (!btn) return;
       const day = Number(btn.dataset.day), val = btn.dataset.status;
       const key = dateKey(emp.id, viewYear, viewMonth, day);
-      const cur = (data.attendance[key] || {}).status;
-      data.attendance[key] = { status: cur === val ? "unmarked" : val };
+      const rec = data.attendance[key] || {};
+      data.attendance[key] = { ...rec, dayType: rec.dayType === val ? "" : val };
       save(); render();
     });
-    document.getElementById("paidOnInput").addEventListener("change", (e) => { data.payments[pKey] = e.target.value; save(); render(); });
+    tbody.addEventListener("change", (e) => {
+      if (e.target.tagName !== "INPUT") return;
+      const day = Number(e.target.dataset.day);
+      const key = dateKey(emp.id, viewYear, viewMonth, day);
+      data.attendance[key] = { ...(data.attendance[key]||{}), amount: e.target.value };
+      save(); render();
+    });
+    wireCommonPanels(emp, pKey);
     return;
   }
 
@@ -361,6 +411,7 @@ function renderAttendance() {
       <div class="card"><div class="card-label">Deducted days</div><div class="card-value" style="color:#7C8A88">${s.deductibleDays.toFixed(2)}</div></div>
       <div class="card highlight"><div class="card-label">Salary this month</div><div class="card-value">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</div><div class="card-sub">${emp.joiningDate && s.startDay>1 ? "Prorated: " + s.effectiveDays + "/" + s.totalDays + " days" : (s.deduction>0 ? "−₹"+Math.round(s.deduction).toLocaleString("en-IN")+" deducted" : "No deduction")}</div></div>
       ${paidOnCard}
+      ${advancesPanel}
     </div>
     <table class="responsive"><thead><tr><th>Date</th><th>Day</th><th>Status</th><th>In time</th><th>Out time</th></tr></thead><tbody id="attBody"></tbody></table>
     <div class="note">Shift 10:00 AM–9:00 PM. Late (after ${LATE_CUTOFF} AM) or early leave (before 9 PM) = half day (deducted). Tap Leave once = paid, tap again = unpaid (deducted), tap again to clear. On Hold flags a pending day and deducts nothing. ${emp.joiningDate ? "Days before joining date are excluded, not paid." : ""}</div>
@@ -417,6 +468,29 @@ function renderAttendance() {
     save(); render();
   });
   document.getElementById("paidOnInput").addEventListener("change", (e) => { data.payments[pKey] = e.target.value; save(); render(); });
+  wireCommonPanels(emp, pKey);
+}
+
+function wireCommonPanels(emp, pKey) {
+  document.getElementById("addAdvanceBtn").addEventListener("click", () => {
+    document.getElementById("addAdvanceForm").style.display = "flex";
+  });
+  const confirmBtn = document.getElementById("confirmAdvance");
+  if (confirmBtn) confirmBtn.addEventListener("click", () => {
+    const date = document.getElementById("advDate").value;
+    const amount = Number(document.getElementById("advAmount").value);
+    if (!date || !amount) return;
+    if (!data.advances[emp.id]) data.advances[emp.id] = [];
+    data.advances[emp.id].push({ id: Date.now(), date, amount });
+    save(); render();
+  });
+  document.getElementById("advanceList").querySelectorAll("[data-adv-id]").forEach(el => {
+    el.addEventListener("click", () => {
+      const advId = Number(el.dataset.advId);
+      data.advances[emp.id] = (data.advances[emp.id] || []).filter(a => a.id !== advId);
+      save(); render();
+    });
+  });
 }
 
 // Pill group for regular attendance: Present / Leave (paid or unpaid) / On Hold
@@ -441,7 +515,7 @@ function renderPayroll() {
     const paidOn = data.payments[paymentKey(emp.id, viewYear, viewMonth)] || "";
     const paidCell = paidOn ? paidOn.split("-").reverse().join("-") : '<span style="color:var(--absent);">Not paid</span>';
     if (s.isFillin) {
-      rows += `<tr><td>${escapeHtml(emp.name)} <span style="font-size:10px;color:#7C8A88;">(Fill-in)</span></td><td>₹${s.dailyRate}/day</td><td>${s.worked}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td style="font-weight:700">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</td><td>${paidCell}</td></tr>`;
+      rows += `<tr><td>${escapeHtml(emp.name)} <span style="font-size:10px;color:#7C8A88;">(Fill-in)</span></td><td>—</td><td>${s.fullCount}F/${s.halfCount}H</td><td>—</td><td>—</td><td>—</td><td>—</td><td>${s.advance?"−₹"+s.advance.toLocaleString("en-IN"):"—"}</td><td style="font-weight:700">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</td><td>${paidCell}</td></tr>`;
     } else {
       rows += `<tr><td>${escapeHtml(emp.name)}</td><td>₹${emp.salary.toLocaleString("en-IN")}</td><td>${s.present}</td><td>${s.halfDay}</td><td>${s.leave} (${s.leaveUnpaid} unpaid)</td><td>${s.onHold}</td><td>${s.deductibleDays.toFixed(2)}</td><td>−₹${Math.round(s.deduction).toLocaleString("en-IN")}</td><td style="font-weight:700">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</td><td>${paidCell}</td></tr>`;
     }
@@ -474,8 +548,9 @@ function renderReport() {
           <div style="font-size:23px;font-weight:800;color:var(--navy);">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</div>${paidTag}</div>
         </div>
         <table style="border:none;"><tbody>
-          <tr><td style="width:45%;color:#7C8A88;">Per-day rate</td><td style="font-weight:600;">₹${s.dailyRate}</td></tr>
-          <tr><td style="color:#7C8A88;">Days worked</td><td>${s.worked}</td></tr>
+          <tr><td style="width:45%;color:#7C8A88;">Full days</td><td style="font-weight:600;">${s.fullCount}</td></tr>
+          <tr><td style="color:#7C8A88;">Half days</td><td style="font-weight:600;">${s.halfCount}</td></tr>
+          ${s.advance ? `<tr><td style="color:#7C8A88;">Advance taken</td><td style="font-weight:600;color:var(--absent);">−₹${s.advance.toLocaleString("en-IN")}</td></tr>` : ""}
           <tr style="border-top:1px solid var(--border);"><td style="font-weight:700;padding-top:12px;">Net amount paid</td><td style="font-weight:800;padding-top:12px;color:var(--navy);">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</td></tr>
         </tbody></table>
       </div>`;
@@ -513,6 +588,7 @@ function renderReport() {
         <tr><td style="color:#7C8A88;">On hold (pending)</td><td>${onHoldDates.length} <span style="color:#9C7A1F;">(${listOrDash(onHoldDates)})</span></td></tr>
         <tr><td style="color:#7C8A88;">Total deducted days</td><td>${s.deductibleDays.toFixed(2)}</td></tr>
         <tr><td style="color:#7C8A88;">Deduction amount</td><td style="font-weight:600;color:var(--absent);">−₹${Math.round(s.deduction).toLocaleString("en-IN")}</td></tr>
+        ${s.advance ? `<tr><td style="color:#7C8A88;">Advance taken</td><td style="font-weight:600;color:var(--absent);">−₹${s.advance.toLocaleString("en-IN")}</td></tr>` : ""}
         <tr style="border-top:1px solid var(--border);"><td style="font-weight:700;padding-top:12px;">Net amount paid</td><td style="font-weight:800;padding-top:12px;color:var(--navy);">₹${Math.round(s.finalSalary).toLocaleString("en-IN")}</td></tr>
       </tbody></table>
     </div>`;
@@ -546,7 +622,6 @@ document.getElementById("cancelAdd").addEventListener("click", () => { document.
 document.getElementById("newType").addEventListener("change", (e) => {
   const isFillin = e.target.value === "fillin";
   document.getElementById("newSalary").style.display = isFillin ? "none" : "block";
-  document.getElementById("newDailyRate").style.display = isFillin ? "block" : "none";
   document.getElementById("joinDateWrap").style.display = isFillin ? "none" : "block";
 });
 document.getElementById("confirmAdd").addEventListener("click", () => {
@@ -555,9 +630,7 @@ document.getElementById("confirmAdd").addEventListener("click", () => {
   if (!name) return;
   const id = Date.now();
   if (type === "fillin") {
-    const rate = Number(document.getElementById("newDailyRate").value);
-    if (!rate || rate <= 0) return;
-    data.employees.push({ id, name, type, dailyRate: rate });
+    data.employees.push({ id, name, type });
   } else {
     const salary = Number(document.getElementById("newSalary").value);
     if (!salary || salary <= 0) return;
@@ -578,4 +651,3 @@ render();
 </script>
 </body>
 </html>
-
